@@ -1,7 +1,7 @@
 use crate::{
-    geometry::{ComputeIntersection, Intersection, Object, Sampleable},
+    geometry::{ComputeIntersection, Intersection, Object},
     material::MaterialIndex,
-    math::{Ray, Vector},
+    math::{Ray, SurfaceSampleable, Vector},
 };
 
 const EPS: f64 = 1e-4;
@@ -85,7 +85,7 @@ impl ComputeIntersection for Quad {
     }
 }
 
-impl Sampleable for Quad {
+impl SurfaceSampleable for Quad {
     fn sample(&self) -> (Vector, Vector) {
         let u = fastrand::f64();
         let v = fastrand::f64();

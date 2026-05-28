@@ -1,9 +1,9 @@
 use std::f64::consts::PI;
 
 use crate::{
-    geometry::{ComputeIntersection, Intersection, Object, Sampleable},
+    geometry::{ComputeIntersection, Intersection, Object},
     material::MaterialIndex,
-    math::{Ray, Vector},
+    math::{Ray, SurfaceSampleable, Vector},
 };
 
 #[derive(Debug)]
@@ -89,7 +89,7 @@ impl ComputeIntersection for Sphere {
     }
 }
 
-impl Sampleable for Sphere {
+impl SurfaceSampleable for Sphere {
     fn sample(&self) -> (Vector, Vector) {
         let dir = Vector::random_unit();
         let point = &self.center + self.radius * &dir;

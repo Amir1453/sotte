@@ -2,12 +2,9 @@ mod intersection;
 mod mesh;
 mod object;
 mod quad;
-mod sampling;
 mod sphere;
 
 pub use intersection::{ComputeIntersection, Intersection};
-
-use sampling::Sampleable;
 
 pub use object::Object;
 

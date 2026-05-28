@@ -1,6 +1,7 @@
+/// TODO: Move to proba module
+
 use crate::math::Vector;
 
-#[allow(unused)]
 pub trait SurfaceSampleable {
     fn sample(&self) -> (Vector, Vector);
 }

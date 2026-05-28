@@ -1,8 +1,7 @@
-use crate::geometry::Sampleable;
 use crate::geometry::{ComputeIntersection, Intersection};
 use crate::geometry::{Quad, Sphere, TriangleMesh};
 use crate::material::MaterialIndex;
-use crate::math::{Ray, Vector};
+use crate::math::{Ray, SurfaceSampleable, Vector};
 
 #[derive(Debug)]
 pub enum Object {
@@ -33,7 +32,7 @@ impl ComputeIntersection for Object {
     }
 }
 
-impl Sampleable for Object {
+impl SurfaceSampleable for Object {
     fn sample(&self) -> (Vector, Vector) {
         match self {
             Object::Sphere(sphere) => sphere.sample(),
