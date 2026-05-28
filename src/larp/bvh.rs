@@ -113,7 +113,7 @@ impl Bvh {
             right: 0,
         });
 
-        let split_position = Self::find_sah_split(primitives, primitive_indices, start, end, &bbox);
+        let split_position = Self::find_split(primitives, primitive_indices, start, end, &bbox);
 
         let Some(split_position) = split_position else {
             nodes[node_index] = BvhNode::new_leaf(bbox, start, end);
@@ -172,35 +172,6 @@ impl Bvh {
     }
 
     fn find_split(
-        primitives: &[CachedPrimitive],
-        primitive_indices: &mut [usize],
-        start: usize,
-        end: usize,
-        bbox: &BoundingBox,
-    ) -> usize {
-        let diag = bbox.diagonal();
-        let axis = diag.axis();
-
-        let mid = bbox.min[axis] + diag[axis] * 0.5;
-        let mut left = start;
-        let mut right = end - 1;
-
-        while left < right {
-            let pri_idx = primitive_indices[left];
-            let center = primitives[pri_idx].center[axis];
-
-            if center < mid {
-                left += 1;
-            } else {
-                primitive_indices.swap(left, right);
-                right -= 1;
-            }
-        }
-
-        left.max(start + 1).min(end - 1)
-    }
-
-    fn find_sah_split(
         cached: &[CachedPrimitive],
         primitive_indices: &mut [usize],
         start: usize,

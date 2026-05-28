@@ -9,8 +9,8 @@ const EPS: f64 = 1e-4;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MaterialIndex(pub usize);
 
-#[allow(unused)]
 pub trait MaterialLike {
+    #[allow(unused)]
     fn emit(&self) -> Vector;
     fn scatter(&self, ray: &Ray, intersect: &Intersection<MaterialIndex>) -> Ray;
 }

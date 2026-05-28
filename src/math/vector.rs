@@ -90,16 +90,26 @@ impl Vector {
         }
     }
 
+    /// TODO test multiple random_unit impl
     #[inline]
     #[must_use]
     pub fn random_unit() -> Self {
-        loop {
-            let p = Vector::random(-1.0, 1.0);
-            let p_length2 = p.norm2();
-            if f64::EPSILON < p_length2 && p_length2 < 1. {
-                return p.normalize();
-            }
-        }
+        let u = fastrand::f64();
+        let v = fastrand::f64();
+
+        let theta = 2.0 * f64::consts::PI * u;
+        let z = 2.0 * v - 1.0;
+        let r = (1.0 - z * z).sqrt();
+
+        Vector::new(r * theta.cos(), r * theta.sin(), z)
+
+        // loop {
+        //     let p = Vector::random(-1.0, 1.0);
+        //     let p_length2 = p.norm2();
+        //     if f64::EPSILON < p_length2 && p_length2 < 1. {
+        //         return p.normalize();
+        //     }
+        // }
     }
 
     #[inline]
