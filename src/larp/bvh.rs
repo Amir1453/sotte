@@ -1,10 +1,94 @@
 use crate::{
-    larp::{Boundable, BoundingBox, BvhNode},
+    larp::{Boundable, BoundingBox},
     math::{Ray, Vector},
 };
 
 #[derive(Debug, Clone)]
-struct CachedPrimitive {
+enum FlatNode {
+    Internal {
+        bbox: BoundingBox,
+        left: u32,
+        right: u32,
+    },
+
+    Leaf {
+        bbox: BoundingBox,
+        start: u32,
+        end: u32,
+    },
+}
+
+impl FlatNode {
+    fn new_internal(bbox: BoundingBox, left: usize, right: usize) -> Self {
+        Self::Internal {
+            bbox,
+            left: left as u32,
+            right: right as u32,
+        }
+    }
+
+    fn new_leaf(bbox: BoundingBox, start: usize, end: usize) -> Self {
+        Self::Leaf {
+            bbox,
+            start: start as u32,
+            end: end as u32,
+        }
+    }
+}
+
+impl Boundable for FlatNode {
+    fn bounding_box(&self) -> BoundingBox {
+        match self {
+            Self::Internal { bbox, .. } => bbox.clone(),
+            Self::Leaf { bbox, .. } => bbox.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum BuildNode {
+    Internal {
+        bbox: BoundingBox,
+        left: Box<BuildNode>,
+        right: Box<BuildNode>,
+    },
+
+    Leaf {
+        bbox: BoundingBox,
+        start: u32,
+        end: u32,
+    },
+}
+
+impl BuildNode {
+    fn new_internal(bbox: BoundingBox, left: BuildNode, right: BuildNode) -> Self {
+        Self::Internal {
+            bbox,
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+    }
+
+    fn new_leaf(bbox: BoundingBox, start: usize, end: usize) -> Self {
+        Self::Leaf {
+            bbox,
+            start: start as u32,
+            end: end as u32,
+        }
+    }
+}
+
+impl Boundable for BuildNode {
+    fn bounding_box(&self) -> BoundingBox {
+        match self {
+            Self::Internal { bbox, .. } => bbox.clone(),
+            Self::Leaf { bbox, .. } => bbox.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CachedPrimitive {
     bounding_box: BoundingBox,
     center: Vector,
 }
@@ -50,7 +134,7 @@ impl Bucket {
 
 #[derive(Debug, Clone)]
 pub struct Bvh {
-    nodes: Vec<BvhNode>,
+    nodes: Vec<FlatNode>,
     primitive_indices: Vec<usize>,
 }
 
@@ -64,7 +148,7 @@ impl Bvh {
         }
     }
 
-    pub fn build<T: Boundable>(primitives: &[T]) -> Self {
+    pub fn build_seq<T: Boundable>(primitives: &[T]) -> Self {
         if primitives.is_empty() {
             return Self::empty();
         }
@@ -76,9 +160,9 @@ impl Bvh {
         let cached_primitives = primitives
             .iter()
             .map(CachedPrimitive::with_primitive)
-            .collect::<Vec<CachedPrimitive>>();
+            .collect::<Vec<_>>();
 
-        Self::build_recursive(
+        Self::build_seq_recursive(
             &cached_primitives,
             &mut primitive_indices,
             0,
@@ -92,22 +176,22 @@ impl Bvh {
         }
     }
 
-    fn build_recursive(
-        primitives: &[CachedPrimitive],
-        primitive_indices: &mut [usize],
+    fn build_seq_recursive<'a>(
+        primitives: &'a [CachedPrimitive],
+        primitive_indices: &'a mut [usize],
         start: usize,
         end: usize,
-        nodes: &mut Vec<BvhNode>,
+        nodes: &'a mut Vec<FlatNode>,
     ) -> usize {
         let bbox = Self::compute_bbox(primitives, &primitive_indices[start..end]);
         let node_index = nodes.len();
 
         if end - start <= 4 {
-            nodes.push(BvhNode::new_leaf(bbox, start, end));
+            nodes.push(FlatNode::new_leaf(bbox, start, end));
             return node_index;
         }
 
-        nodes.push(BvhNode::Internal {
+        nodes.push(FlatNode::Internal {
             bbox: bbox.clone(),
             left: 0,
             right: 0,
@@ -116,27 +200,103 @@ impl Bvh {
         let split_position = Self::find_split(primitives, primitive_indices, start, end, &bbox);
 
         let Some(split_position) = split_position else {
-            nodes[node_index] = BvhNode::new_leaf(bbox, start, end);
+            nodes[node_index] = FlatNode::new_leaf(bbox, start, end);
             return node_index;
         };
 
         let left =
-            Self::build_recursive(primitives, primitive_indices, start, split_position, nodes);
-        let right =
-            Self::build_recursive(primitives, primitive_indices, split_position, end, nodes);
+            Self::build_seq_recursive(primitives, primitive_indices, start, split_position, nodes);
 
-        nodes[node_index] = BvhNode::new_internal(bbox, left, right);
+        let right =
+            Self::build_seq_recursive(primitives, primitive_indices, split_position, end, nodes);
+
+        nodes[node_index] = FlatNode::new_internal(bbox, left, right);
 
         node_index
     }
 
-    fn compute_bbox(primitives: &[CachedPrimitive], primitive_indices: &[usize]) -> BoundingBox {
-        let bboxes: Vec<_> = primitive_indices
-            .iter()
-            .map(|&index| primitives[index].bounding_box.clone())
-            .collect();
+    pub fn build_par<T>(primitives: &[T]) -> Self
+    where
+        T: Boundable + Sync,
+    {
+        if primitives.is_empty() {
+            return Self::empty();
+        }
 
-        bboxes.bounding_box()
+        let primitive_count = primitives.len();
+        let mut primitive_indices: Vec<usize> = (0..primitive_count).collect();
+
+        let cached_primitives = primitives
+            .iter()
+            .map(CachedPrimitive::with_primitive)
+            .collect::<Vec<_>>();
+
+        let tree = Self::build_par_recursive(
+            &cached_primitives,
+            &mut primitive_indices,
+            0,
+            primitive_count,
+            0,
+        );
+
+        let mut nodes = Vec::with_capacity(2 * primitive_count);
+        Self::flatten_build_node(tree, &mut nodes);
+
+        Bvh {
+            nodes,
+            primitive_indices,
+        }
+    }
+
+    fn build_par_recursive(
+        primitives: &[CachedPrimitive],
+        primitive_indices: &mut [usize],
+        start: usize,
+        end: usize,
+        base: usize,
+    ) -> BuildNode {
+        let bbox = Self::compute_bbox(primitives, &primitive_indices[start..end]);
+        let primitive_count = end - start;
+
+        if primitive_count <= 4 {
+            return BuildNode::new_leaf(bbox, base + start, base + end);
+        }
+
+        let Some(split_position) =
+            Self::find_split(primitives, primitive_indices, start, end, &bbox)
+        else {
+            return BuildNode::new_leaf(bbox, base + start, base + end);
+        };
+
+        let current = &mut primitive_indices[start..end];
+        let (left_indices, right_indices) = current.split_at_mut(split_position - start);
+
+        let left_len = left_indices.len();
+        let right_len = right_indices.len();
+
+        let (left, right) = rayon::join(
+            || Self::build_par_recursive(primitives, left_indices, 0, left_len, base + start),
+            || {
+                Self::build_par_recursive(
+                    primitives,
+                    right_indices,
+                    0,
+                    right_len,
+                    base + split_position,
+                )
+            },
+        );
+
+        BuildNode::new_internal(bbox, left, right)
+    }
+
+    fn compute_bbox(primitives: &[CachedPrimitive], primitive_indices: &[usize]) -> BoundingBox {
+        let mut bbox = BoundingBox::EMPTY;
+
+        for &idx in primitive_indices {
+            bbox.union_mut(&primitives[idx].bounding_box);
+        }
+        bbox
     }
 
     pub fn intersect_ray(&self, ray: &Ray, t_min: f64, t_max: f64) -> Vec<usize> {
@@ -156,12 +316,12 @@ impl Bvh {
             }
 
             match node {
-                BvhNode::Leaf { start, end, .. } => {
+                FlatNode::Leaf { start, end, .. } => {
                     for i in *start..*end {
                         hits.push(self.primitive_indices[i as usize]);
                     }
                 }
-                BvhNode::Internal { left, right, .. } => {
+                FlatNode::Internal { left, right, .. } => {
                     stack.push(*right);
                     stack.push(*left);
                 }
@@ -169,6 +329,30 @@ impl Bvh {
         }
 
         hits
+    }
+
+    fn flatten_build_node(node: BuildNode, nodes: &mut Vec<FlatNode>) -> usize {
+        let node_index = nodes.len();
+
+        match node {
+            BuildNode::Leaf { bbox, start, end } => {
+                nodes.push(FlatNode::Leaf { bbox, start, end });
+            }
+            BuildNode::Internal { bbox, left, right } => {
+                nodes.push(FlatNode::Internal {
+                    bbox: bbox.clone(),
+                    left: 0,
+                    right: 0,
+                });
+
+                let left_index = Self::flatten_build_node(*left, nodes);
+                let right_index = Self::flatten_build_node(*right, nodes);
+
+                nodes[node_index] = FlatNode::new_internal(bbox, left_index, right_index);
+            }
+        }
+
+        node_index
     }
 
     fn find_split(

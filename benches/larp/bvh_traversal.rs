@@ -1,15 +1,17 @@
-use core::f64;
 use criterion::Criterion;
 use std::hint::black_box;
 
-use crate::common;
 use renderer::larp::{Boundable, Bvh};
+
+use crate::common;
+
+// Traversal benchmarks
 
 const RAY_COUNT: usize = 100_000;
 
 pub fn seq_cat(c: &mut Criterion) {
     let mesh = common::cat().build_soup();
-    let bvh = Bvh::build(&mesh);
+    let bvh = Bvh::build_seq(&mesh);
     let root_bbox = bvh.bounding_box();
 
     let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
@@ -25,7 +27,7 @@ pub fn seq_cat(c: &mut Criterion) {
 
 pub fn seq_lucky(c: &mut Criterion) {
     let mesh = common::lucky().build_soup();
-    let bvh = Bvh::build(&mesh);
+    let bvh = Bvh::build_seq(&mesh);
     let root_bbox = bvh.bounding_box();
 
     let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
@@ -41,7 +43,7 @@ pub fn seq_lucky(c: &mut Criterion) {
 
 pub fn seq_maria(c: &mut Criterion) {
     let mesh = common::maria().build_soup();
-    let bvh = Bvh::build(&mesh);
+    let bvh = Bvh::build_seq(&mesh);
     let root_bbox = bvh.bounding_box();
 
     let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);

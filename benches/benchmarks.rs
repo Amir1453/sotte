@@ -7,12 +7,11 @@ use crate::larp::*;
 
 criterion_group!(
     benches,
-    build::seq_cat,
-    // build::seq_lucky,
-    build::seq_maria,
-    build::par_cat,
-    // traversal::seq_cat,
-    // traversal::seq_lucky,
-    traversal::seq_maria,
+    bvh_build::seq_cat,
+    bvh_build::seq_lucky,
+    bvh_build::seq_maria,
+    bvh_build::par_cat,
+    bvh_build::par_lucky,
+    bvh_build::par_maria,
 );
 criterion_main!(benches);
