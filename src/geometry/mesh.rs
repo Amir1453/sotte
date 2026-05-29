@@ -244,7 +244,7 @@ impl TriangleMeshBuilder {
             triangles: self.triangles,
             bvh: Bvh::empty(),
         };
-        mesh.bvh = Bvh::build_par(&mesh.triangles);
+        mesh.bvh = Bvh::build_seq(&mesh.triangles);
 
         Object::TriangleMesh(mesh)
     }

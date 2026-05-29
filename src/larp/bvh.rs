@@ -215,10 +215,7 @@ impl Bvh {
         node_index
     }
 
-    pub fn build_par<T>(primitives: &[T]) -> Self
-    where
-        T: Boundable + Sync,
-    {
+    pub fn build_par<T: Boundable>(primitives: &[T]) -> Self {
         if primitives.is_empty() {
             return Self::empty();
         }
@@ -268,6 +265,29 @@ impl Bvh {
             return BuildNode::new_leaf(bbox, base + start, base + end);
         };
 
+        const SEQUENTIAL_THRESHOLD: usize = 1024;
+        if primitive_count < SEQUENTIAL_THRESHOLD {
+            let current = &mut primitive_indices[start..end];
+            let (left_indices, right_indices) = current.split_at_mut(split_position - start);
+
+            let left = Self::build_par_recursive_branchless(
+                primitives,
+                left_indices,
+                0,
+                left_indices.len(),
+                base + start,
+            );
+            let right = Self::build_par_recursive_branchless(
+                primitives,
+                right_indices,
+                0,
+                right_indices.len(),
+                base + split_position,
+            );
+
+            return BuildNode::new_internal(bbox, left, right);
+        }
+
         let current = &mut primitive_indices[start..end];
         let (left_indices, right_indices) = current.split_at_mut(split_position - start);
 
@@ -290,6 +310,48 @@ impl Bvh {
         BuildNode::new_internal(bbox, left, right)
     }
 
+    fn build_par_recursive_branchless(
+        primitives: &[CachedPrimitive],
+        primitive_indices: &mut [usize],
+        start: usize,
+        end: usize,
+        base: usize,
+    ) -> BuildNode {
+        let bbox = Self::compute_bbox(primitives, &primitive_indices[start..end]);
+        let primitive_count = end - start;
+
+        if primitive_count <= 4 {
+            return BuildNode::new_leaf(bbox, base + start, base + end);
+        }
+
+        let Some(split_position) =
+            Self::find_split(primitives, primitive_indices, start, end, &bbox)
+        else {
+            return BuildNode::new_leaf(bbox, base + start, base + end);
+        };
+
+        let current = &mut primitive_indices[start..end];
+        let (left_indices, right_indices) = current.split_at_mut(split_position - start);
+
+        let left = Self::build_par_recursive_branchless(
+            primitives,
+            left_indices,
+            0,
+            left_indices.len(),
+            base + start,
+        );
+
+        let right = Self::build_par_recursive_branchless(
+            primitives,
+            right_indices,
+            0,
+            right_indices.len(),
+            base + split_position,
+        );
+
+        return BuildNode::new_internal(bbox, left, right);
+    }
+
     fn compute_bbox(primitives: &[CachedPrimitive], primitive_indices: &[usize]) -> BoundingBox {
         let mut bbox = BoundingBox::EMPTY;
 
@@ -300,7 +362,7 @@ impl Bvh {
     }
 
     pub fn intersect_ray(&self, ray: &Ray, t_min: f64, t_max: f64) -> Vec<usize> {
-        let mut hits = Vec::new();
+        let mut hits = Vec::with_capacity(10);
         if self.nodes.is_empty() {
             return hits;
         }
