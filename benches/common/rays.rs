@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use renderer::{
     larp::BoundingBox,
     math::{Ray, Vector, VolumeSampleable},

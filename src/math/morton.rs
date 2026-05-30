@@ -115,27 +115,22 @@ impl<T: MortonParameter> PartialOrd<T> for MortonCode<T> {
 }
 
 pub trait MortonSorter {
-    type Output;
-
-    fn radix_sort(&self) -> Self::Output;
+    fn radix_sort(&mut self);
 }
 
-impl<T: MortonParameter> MortonSorter for &[MortonCode<T>] {
-    type Output = Vec<MortonCode<T>>;
-
-    fn radix_sort(&self) -> Self::Output {
+impl<T: MortonParameter> MortonSorter for Vec<MortonCode<T>> {
+    fn radix_sort(&mut self) {
         const BUCKET_SIZE: usize = 6;
         const N_BUCKETS: usize = 1 << BUCKET_SIZE;
         const MASK: usize = (1 << BUCKET_SIZE) - 1;
         let passes = (3 * T::BITS_PER_AXIS).div_ceil(BUCKET_SIZE);
 
-        let n = self.len();
-        if n <= 1 {
-            return self.to_vec();
+        if self.len() <= 1 {
+            return;
         }
 
         let mut source: Vec<MortonCode<T>> = self.to_vec();
-        let mut destination: Vec<MortonCode<T>> = vec![source[0]; n];
+        let mut destination: Vec<MortonCode<T>> = vec![source[0]; self.len()];
 
         let mut shift = 0;
         for _ in 0..passes {
@@ -166,7 +161,7 @@ impl<T: MortonParameter> MortonSorter for &[MortonCode<T>] {
             shift += BUCKET_SIZE;
         }
 
-        source
+        std::mem::swap(&mut source, self);
     }
 }
 
@@ -419,12 +414,14 @@ mod tests {
         ];
 
         let codes: Vec<_> = points.iter().map(|p| encoder.encode(p)).collect();
-        let radix_sorted = codes.as_slice().radix_sort();
 
-        let mut expected = codes.clone();
+        let mut radix = codes.clone();
+        radix.radix_sort();
+
+        let mut expected = codes;
         expected.sort();
 
-        assert_eq!(radix_sorted, expected);
+        assert_eq!(radix, expected);
     }
 
     #[test]
@@ -436,12 +433,13 @@ mod tests {
             .map(|_| MortonCode(fastrand::u32(..max)))
             .collect();
 
-        let radix_sorted = data.as_slice().radix_sort();
+        let mut radix = data.clone();
+        radix.radix_sort();
 
-        let mut expected = data.clone();
+        let mut expected = data;
         expected.sort();
 
-        assert_eq!(radix_sorted, expected);
+        assert_eq!(radix, expected);
     }
 
     #[test]
@@ -453,11 +451,12 @@ mod tests {
             .map(|_| MortonCode(fastrand::u64(..max)))
             .collect();
 
-        let radix_sorted = data.as_slice().radix_sort();
+        let mut radix = data.clone();
+        radix.radix_sort();
 
-        let mut expected = data.clone();
+        let mut expected = data;
         expected.sort();
 
-        assert_eq!(radix_sorted, expected);
+        assert_eq!(radix, expected);
     }
 }

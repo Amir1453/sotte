@@ -16,5 +16,9 @@ tobj = { version = "4.0.3", features = ["use_f64"] }
 criterion = { version = "0.8.2", features = ["html_reports"] }
 
 [[bench]]
-name = "benchmarks"
+name = "larpbench"
+harness = false
+
+[[bench]]
+name = "mathbench"
 harness = false
