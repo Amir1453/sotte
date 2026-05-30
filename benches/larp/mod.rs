@@ -1,4 +1,5 @@
 pub mod bvh_build;
 pub mod bvh_traversal;
 
-pub mod lbvh;
+pub mod lbvh_build;
+pub mod lbvh_traversal;

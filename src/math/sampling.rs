@@ -1,5 +1,4 @@
 /// TODO: Move to proba module
-
 use crate::math::Vector;
 
 pub trait SurfaceSampleable {

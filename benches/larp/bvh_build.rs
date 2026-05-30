@@ -1,7 +1,7 @@
 use criterion::Criterion;
 use std::hint::black_box;
 
-use renderer::larp::{Bvh};
+use renderer::larp::Bvh;
 
 use crate::common;
 

@@ -1,55 +1,49 @@
 use core::f64;
-use std::marker::PhantomData;
+use std::{cmp::Ordering, marker::PhantomData, ops::*};
 
 use crate::{larp::BoundingBox, math::Vector};
 
-#[derive(Debug, Clone)]
-pub struct MortonEncoder<EncodeTo> {
-    min: Vector,
-    inv_extent: Vector,
-    phantom: PhantomData<EncodeTo>,
+pub trait MortonParameter
+where
+    Self: Copy,
+    Self: Sized,
+    Self: PartialEq + Eq + PartialOrd + Ord,
+    Self: Add<Output = Self>,
+    Self: Sub<Output = Self>,
+    Self: Mul<Output = Self>,
+    Self: Div<Output = Self>,
+    Self: Rem<Output = Self>,
+    Self: AddAssign,
+    Self: SubAssign,
+    Self: MulAssign,
+    Self: DivAssign,
+    Self: RemAssign,
+    Self: BitAnd<Output = Self>,
+    Self: BitOr<Output = Self>,
+    Self: BitXor<Output = Self>,
+    Self: Not<Output = Self>,
+    Self: BitAndAssign,
+    Self: BitOrAssign,
+    Self: BitXorAssign,
+    Self: Shl<usize, Output = Self>,
+    Self: Shr<usize, Output = Self>,
+    Self: ShlAssign<usize>,
+    Self: ShrAssign<usize>,
+{
+    const BITS_PER_AXIS: usize;
+    const MAX_COORD: f64;
+
+    fn voodoo(v: Self) -> Self;
+    fn from_f64(v: f64) -> Self;
+    fn into_usize(v: Self) -> usize;
 }
 
-impl<EncodeTo> MortonEncoder<EncodeTo> {
-    #[inline(always)]
-    #[must_use]
-    pub fn new(bounds: &BoundingBox) -> Self {
-        let extent = bounds.diagonal();
-
-        Self {
-            min: bounds.min.clone(),
-            inv_extent: extent.recip(),
-            phantom: PhantomData::default(),
-        }
-    }
-}
-
-impl MortonEncoder<u32> {
-    pub const BITS_PER_AXIS: usize = 10;
-    pub const MAX_COORD: f64 = ((1 << Self::BITS_PER_AXIS) - 1) as f64;
+impl MortonParameter for u32 {
+    const BITS_PER_AXIS: usize = 10;
+    const MAX_COORD: f64 = ((1 << Self::BITS_PER_AXIS) - 1) as f64;
 
     #[inline]
-    #[must_use]
-    pub fn encode_u32(&self, p: &Vector) -> u32 {
-        let n = ((p - &self.min) * &self.inv_extent).clamp_scalar(0.0, 1.);
-        let (x, y, z) = n
-            .map(|elem| (elem * Self::MAX_COORD).round().clamp(0., Self::MAX_COORD))
-            .as_u32();
-
-        Self::morton_u32(x, y, z)
-    }
-
-    #[inline]
-    #[must_use]
-    fn morton_u32(x: u32, y: u32, z: u32) -> u32 {
-        Self::voodoo_u32(x) | (Self::voodoo_u32(y) << 1) | (Self::voodoo_u32(z) << 2)
-    }
-
-    // Taken from Stack Overflow
-    // Morton encoding for 3 10-bit into u32
-    #[inline]
-    #[must_use]
-    fn voodoo_u32(mut v: u32) -> u32 {
+    fn voodoo(mut v: u32) -> u32 {
         v &= 0x0000_03ff;
 
         v = (v | (v << 16)) & 0x0300_00ff;
@@ -59,34 +53,24 @@ impl MortonEncoder<u32> {
 
         v
     }
+
+    #[inline]
+    fn from_f64(value: f64) -> Self {
+        value as u32
+    }
+
+    #[inline]
+    fn into_usize(v: Self) -> usize {
+        v as usize
+    }
 }
 
-impl MortonEncoder<u64> {
-    pub const BITS_PER_AXIS: usize = 21;
-    pub const MAX_COORD: f64 = ((1 << Self::BITS_PER_AXIS) - 1) as f64;
+impl MortonParameter for u64 {
+    const BITS_PER_AXIS: usize = 21;
+    const MAX_COORD: f64 = ((1 << Self::BITS_PER_AXIS) - 1) as f64;
 
     #[inline]
-    #[must_use]
-    pub fn encode_u64(&self, p: &Vector) -> u64 {
-        let n = ((p - &self.min) * &self.inv_extent).clamp_scalar(0.0, 1.);
-        let (x, y, z) = n
-            .map(|elem| (elem * Self::MAX_COORD).round().clamp(0., Self::MAX_COORD))
-            .as_u64();
-
-        Self::morton_u64(x, y, z)
-    }
-
-    #[inline]
-    #[must_use]
-    fn morton_u64(x: u64, y: u64, z: u64) -> u64 {
-        Self::voodoo_u64(x) | (Self::voodoo_u64(y) << 1) | (Self::voodoo_u64(z) << 2)
-    }
-
-    // Taken from Stack Overflow
-    // Morton encoding for 3 21-bit into u64
-    #[inline]
-    #[must_use]
-    fn voodoo_u64(mut v: u64) -> u64 {
+    fn voodoo(mut v: u64) -> u64 {
         v &= 0x1fffff;
 
         v = (v | (v << 32)) & 0x01f00000000ffff;
@@ -96,6 +80,130 @@ impl MortonEncoder<u64> {
         v = (v | (v << 2)) & 0x1249249249249249;
 
         v
+    }
+
+    #[inline]
+    fn from_f64(value: f64) -> Self {
+        value as u64
+    }
+
+    #[inline]
+    fn into_usize(v: Self) -> usize {
+        v as usize
+    }
+}
+
+#[derive(PartialEq, PartialOrd, Eq, Ord, Clone, Copy, Debug, Hash)]
+pub struct MortonCode<T: MortonParameter>(pub T);
+
+impl<T: MortonParameter> AsRef<T> for MortonCode<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: MortonParameter> PartialEq<T> for MortonCode<T> {
+    fn eq(&self, other: &T) -> bool {
+        &self.0 == other
+    }
+}
+
+impl<T: MortonParameter> PartialOrd<T> for MortonCode<T> {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        self.0.partial_cmp(other)
+    }
+}
+
+pub trait MortonSorter {
+    type Output;
+
+    fn radix_sort(&self) -> Self::Output;
+}
+
+impl<T: MortonParameter> MortonSorter for &[MortonCode<T>] {
+    type Output = Vec<MortonCode<T>>;
+
+    fn radix_sort(&self) -> Self::Output {
+        const BUCKET_SIZE: usize = 6;
+        const N_BUCKETS: usize = 1 << BUCKET_SIZE;
+        const MASK: usize = (1 << BUCKET_SIZE) - 1;
+        let passes = (3 * T::BITS_PER_AXIS).div_ceil(BUCKET_SIZE);
+
+        let n = self.len();
+        if n <= 1 {
+            return self.to_vec();
+        }
+
+        let mut source: Vec<MortonCode<T>> = self.to_vec();
+        let mut destination: Vec<MortonCode<T>> = vec![source[0]; n];
+
+        let mut shift = 0;
+        for _ in 0..passes {
+            let mut frequency = [0usize; N_BUCKETS];
+
+            for code in &source {
+                let key: usize = (T::into_usize(code.0) >> shift) & MASK;
+                frequency[key] += 1;
+            }
+
+            let mut start = 0;
+            for bucket_start in &mut frequency {
+                let bucket_count = *bucket_start;
+                *bucket_start = start;
+                start += bucket_count;
+            }
+
+            for code in &source {
+                let key = (T::into_usize(code.0) >> shift) & MASK;
+                let idx = frequency[key];
+
+                destination[idx] = *code;
+                frequency[key] = idx + 1;
+            }
+
+            std::mem::swap(&mut source, &mut destination);
+
+            shift += BUCKET_SIZE;
+        }
+
+        source
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MortonEncoder<T: MortonParameter> {
+    min: Vector,
+    inv_extent: Vector,
+    phantom: PhantomData<T>,
+}
+
+impl<T: MortonParameter> MortonEncoder<T> {
+    #[inline(always)]
+    #[must_use]
+    pub fn new(bounds: &BoundingBox) -> Self {
+        let extent = bounds.diagonal();
+
+        Self {
+            min: bounds.min.clone(),
+            inv_extent: extent.recip(),
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn encode(&self, p: &Vector) -> MortonCode<T> {
+        let n = ((p - &self.min) * &self.inv_extent).clamp_scalar(0.0, 1.);
+        let v = n.map(|elem| (elem * T::MAX_COORD).round().clamp(0., T::MAX_COORD));
+
+        Self::morton(T::from_f64(v.x), T::from_f64(v.y), T::from_f64(v.z))
+    }
+
+    #[inline]
+    #[must_use]
+    fn morton(x: T, y: T, z: T) -> MortonCode<T> {
+        let code = T::voodoo(x) | (T::voodoo(y) << 1) | (T::voodoo(z) << 2);
+        MortonCode(code)
     }
 }
 
@@ -112,8 +220,8 @@ mod tests {
         let encoder = MortonEncoder::<u32>::new(&BBOX);
         let origin = Vector::ZERO;
 
-        let code = encoder.encode_u32(&origin);
-        assert_eq!(code, 0, "Origin should encode to 0");
+        let code = encoder.encode(&origin);
+        assert_eq!(code.0, 0, "Origin should encode to 0");
     }
 
     #[test]
@@ -121,8 +229,8 @@ mod tests {
         let encoder = MortonEncoder::<u32>::new(&BBOX);
         let max_point = Vector::splat(10.);
 
-        let code = encoder.encode_u32(&max_point);
-        let expected_max = (1 << (3 * MortonEncoder::<u32>::BITS_PER_AXIS)) - 1;
+        let code = encoder.encode(&max_point);
+        let expected_max = (1 << (3 * <u32>::BITS_PER_AXIS)) - 1;
         assert_eq!(
             code, expected_max as u32,
             "Max corner should encode to max value"
@@ -134,10 +242,10 @@ mod tests {
         let encoder = MortonEncoder::<u32>::new(&BBOX);
         let center = Vector::splat(5.);
 
-        let code = encoder.encode_u32(&center);
-        let max_code = (1 << (3 * MortonEncoder::<u32>::BITS_PER_AXIS)) - 1;
+        let code = encoder.encode(&center);
+        let max_code = (1 << (3 * <u32>::BITS_PER_AXIS)) - 1;
         assert!(
-            code > 0 && code < max_code,
+            code.0 > 0 && code.0 < max_code,
             "Center should encode to middle range"
         );
     }
@@ -150,9 +258,9 @@ mod tests {
         let p2 = Vector::Y * 5.;
         let p3 = Vector::Z * 5.;
 
-        let c1 = encoder.encode_u32(&p1);
-        let c2 = encoder.encode_u32(&p2);
-        let c3 = encoder.encode_u32(&p3);
+        let c1 = encoder.encode(&p1);
+        let c2 = encoder.encode(&p2);
+        let c3 = encoder.encode(&p3);
 
         assert!(
             c1 != c2 && c2 != c3 && c1 != c3,
@@ -165,10 +273,13 @@ mod tests {
         let encoder = MortonEncoder::<u32>::new(&BBOX);
         let point = Vector::new(3.7, 2.5, 8.1);
 
-        let code1 = encoder.encode_u32(&point);
-        let code2 = encoder.encode_u32(&point);
+        let code1 = encoder.encode(&point);
+        let code2 = encoder.encode(&point);
 
-        assert_eq!(code1, code2, "Same input should always produce same output");
+        assert_eq!(
+            code1, code2.0,
+            "Same input should always produce same output"
+        );
     }
 
     #[test]
@@ -180,9 +291,12 @@ mod tests {
             let y = (9 - i) as f64;
             let point = Vector::new(x, y, 5.0);
 
-            let code = encoder.encode_u32(&point);
-            let max_code = (1u64 << (3 * MortonEncoder::<u32>::BITS_PER_AXIS)) - 1;
-            assert!(code as u64 <= max_code, "Code should fit in allocated bits");
+            let code = encoder.encode(&point);
+            let max_code = (1u64 << (3 * <u32>::BITS_PER_AXIS)) - 1;
+            assert!(
+                code.0 as u64 <= max_code,
+                "Code should fit in allocated bits"
+            );
         }
     }
 
@@ -193,7 +307,7 @@ mod tests {
         let encoder = MortonEncoder::<u64>::new(&BBOX);
         let origin = Vector::ZERO;
 
-        let code = encoder.encode_u64(&origin);
+        let code = encoder.encode(&origin);
         assert_eq!(code, 0, "Origin should encode to 0");
     }
 
@@ -202,8 +316,8 @@ mod tests {
         let encoder = MortonEncoder::<u64>::new(&BBOX);
         let max_point = Vector::splat(10.);
 
-        let code = encoder.encode_u64(&max_point);
-        let expected_max = (1u128 << (3 * MortonEncoder::<u64>::BITS_PER_AXIS)) - 1;
+        let code = encoder.encode(&max_point);
+        let expected_max = (1u128 << (3 * <u64>::BITS_PER_AXIS)) - 1;
         assert_eq!(
             code, expected_max as u64,
             "Max corner should encode to max value"
@@ -215,8 +329,8 @@ mod tests {
         let encoder = MortonEncoder::<u64>::new(&BBOX);
         let center = Vector::splat(5.);
 
-        let code = encoder.encode_u64(&center);
-        let max_code = (1u128 << (3 * MortonEncoder::<u64>::BITS_PER_AXIS)) - 1;
+        let code = encoder.encode(&center);
+        let max_code = (1u128 << (3 * <u64>::BITS_PER_AXIS)) - 1;
         assert!(
             code > 0 && code < (max_code as u64),
             "Center should encode to middle range"
@@ -228,10 +342,13 @@ mod tests {
         let encoder = MortonEncoder::<u64>::new(&BBOX);
         let point = Vector::new(3.7, 2.5, 8.1);
 
-        let code1 = encoder.encode_u64(&point);
-        let code2 = encoder.encode_u64(&point);
+        let code1 = encoder.encode(&point);
+        let code2 = encoder.encode(&point);
 
-        assert_eq!(code1, code2, "Same input should always produce same output");
+        assert_eq!(
+            code1, code2.0,
+            "Same input should always produce same output"
+        );
     }
 
     // ============ Edge Cases ============
@@ -244,11 +361,11 @@ mod tests {
         let bounds = BoundingBox::new(min.clone(), max.clone());
         let encoder = MortonEncoder::<u32>::new(&bounds);
 
-        let code_min = encoder.encode_u32(&min);
+        let code_min = encoder.encode(&min);
         assert_eq!(code_min, 0, "Min corner should encode to 0");
 
-        let code_max = encoder.encode_u32(&max);
-        let expected_max = (1 << (3 * MortonEncoder::<u32>::BITS_PER_AXIS)) - 1;
+        let code_max = encoder.encode(&max);
+        let expected_max = (1 << (3 * <u32>::BITS_PER_AXIS)) - 1;
         assert_eq!(
             code_max, expected_max as u32,
             "Max corner should encode to max"
@@ -261,10 +378,10 @@ mod tests {
         let encoder = MortonEncoder::<u32>::new(&bounds);
 
         let point = Vector::new(10.0, 5.0, 2.5);
-        let code = encoder.encode_u32(&point);
+        let code = encoder.encode(&point);
 
-        let max_code = (1u64 << (3 * MortonEncoder::<u32>::BITS_PER_AXIS)) - 1;
-        assert!(code as u64 <= max_code);
+        let max_code = (1u64 << (3 * <u32>::BITS_PER_AXIS)) - 1;
+        assert!(code.0 as u64 <= max_code);
     }
 
     #[test]
@@ -274,10 +391,10 @@ mod tests {
         let p1 = Vector::splat(5.0);
         let p2 = Vector::new(5.1, 5.0, 5.0);
 
-        let c1 = encoder.encode_u32(&p1);
-        let c2 = encoder.encode_u32(&p2);
+        let c1 = encoder.encode(&p1);
+        let c2 = encoder.encode(&p2);
 
-        let xor = c1 ^ c2;
+        let xor = c1.0 ^ c2.0;
         let hamming_distance = xor.count_ones();
 
         println!("Hamming distance: {}", hamming_distance);
@@ -285,5 +402,62 @@ mod tests {
             hamming_distance <= 20,
             "Nearby points should have small Hamming distance"
         );
+    }
+
+    // ============ Radix Sort ============
+
+    #[test]
+    fn test_radix_sort_encoded_points() {
+        let encoder = MortonEncoder::<u32>::new(&BBOX);
+
+        let points = [
+            Vector::new(8.0, 1.0, 3.0),
+            Vector::new(2.0, 7.0, 1.0),
+            Vector::new(5.0, 5.0, 5.0),
+            Vector::new(1.0, 1.0, 1.0),
+            Vector::new(9.0, 9.0, 9.0),
+        ];
+
+        let codes: Vec<_> = points.iter().map(|p| encoder.encode(p)).collect();
+        let radix_sorted = codes.as_slice().radix_sort();
+
+        let mut expected = codes.clone();
+        expected.sort();
+
+        assert_eq!(radix_sorted, expected);
+    }
+
+    #[test]
+    fn test_radix_sort_random_u32() {
+        fastrand::seed(42);
+
+        let max = 1u32 << (3 * <u32 as MortonParameter>::BITS_PER_AXIS);
+        let data: Vec<MortonCode<u32>> = (0..100_000)
+            .map(|_| MortonCode(fastrand::u32(..max)))
+            .collect();
+
+        let radix_sorted = data.as_slice().radix_sort();
+
+        let mut expected = data.clone();
+        expected.sort();
+
+        assert_eq!(radix_sorted, expected);
+    }
+
+    #[test]
+    fn test_radix_sort_random_u64() {
+        fastrand::seed(42);
+
+        let max = 1u64 << (3 * <u64 as MortonParameter>::BITS_PER_AXIS);
+        let data: Vec<MortonCode<u64>> = (0..100_000)
+            .map(|_| MortonCode(fastrand::u64(..max)))
+            .collect();
+
+        let radix_sorted = data.as_slice().radix_sort();
+
+        let mut expected = data.clone();
+        expected.sort();
+
+        assert_eq!(radix_sorted, expected);
     }
 }

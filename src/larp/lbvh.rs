@@ -7,7 +7,7 @@ use crate::{
 
 #[allow(unused)]
 #[derive(Debug, Clone)]
-pub enum LbvhNode {
+pub enum LinearBvhNode {
     Internal {
         parent: Option<usize>,
         left: usize,
@@ -21,7 +21,7 @@ pub enum LbvhNode {
     },
 }
 
-impl LbvhNode {
+impl LinearBvhNode {
     pub const EMPTY_LEAF: Self = Self::Leaf {
         parent: None,
         primitive_index: 0,
@@ -74,7 +74,7 @@ impl LbvhNode {
     }
 }
 
-impl Boundable for LbvhNode {
+impl Boundable for LinearBvhNode {
     fn bounding_box(&self) -> BoundingBox {
         match self {
             Self::Internal { bbox, .. } => bbox.clone(),
@@ -94,22 +94,22 @@ impl MortonPrimitive {
     #[must_use]
     fn with_primitive<T: Boundable>(primitive: &T, encoder: &MortonEncoder<u32>) -> Self {
         let bounding_box = primitive.bounding_box();
-        let morton_code = encoder.encode_u32(&bounding_box.center());
+        let morton_code = encoder.encode(&bounding_box.center());
 
         MortonPrimitive {
             bounding_box,
-            morton_code,
+            morton_code: morton_code.0,
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Lbvh {
-    nodes: Vec<LbvhNode>,
+pub struct LinearBvh {
+    nodes: Vec<LinearBvhNode>,
     primitive_indices: Vec<usize>,
 }
 
-impl Lbvh {
+impl LinearBvh {
     #[inline(always)]
     #[must_use]
     pub const fn empty() -> Self {
@@ -207,18 +207,18 @@ impl Lbvh {
 
     #[inline]
     #[must_use]
-    fn propagate_bboxes(nodes: &mut [LbvhNode], node_index: usize) -> BoundingBox {
+    fn propagate_bboxes(nodes: &mut [LinearBvhNode], node_index: usize) -> BoundingBox {
         let node = nodes[node_index].clone();
 
         match node {
-            LbvhNode::Leaf { bbox, .. } => bbox,
+            LinearBvhNode::Leaf { bbox, .. } => bbox,
 
-            LbvhNode::Internal { left, right, .. } => {
+            LinearBvhNode::Internal { left, right, .. } => {
                 let left_bbox = Self::propagate_bboxes(nodes, left);
                 let right_bbox = Self::propagate_bboxes(nodes, right);
                 let bbox = left_bbox.union(&right_bbox);
 
-                if let LbvhNode::Internal {
+                if let LinearBvhNode::Internal {
                     bbox: node_bbox, ..
                 } = &mut nodes[node_index]
                 {
@@ -255,13 +255,13 @@ impl Lbvh {
         let (primitive_indices, morton_primitives): (Vec<usize>, Vec<MortonPrimitive>) =
             zipped.into_iter().unzip();
 
-        let mut nodes = vec![LbvhNode::EMPTY_LEAF; 2 * primitive_count - 1];
+        let mut nodes = vec![LinearBvhNode::EMPTY_LEAF; 2 * primitive_count - 1];
 
         let leaf_offset = primitive_count - 1;
         for leaf_idx in 0..primitive_count {
             let node_idx = leaf_offset + leaf_idx;
 
-            nodes[node_idx] = LbvhNode::new_leaf(
+            nodes[node_idx] = LinearBvhNode::new_leaf(
                 None,
                 morton_primitives[leaf_idx].bounding_box.clone(),
                 primitive_indices[leaf_idx],
@@ -290,13 +290,13 @@ impl Lbvh {
                 nodes[right].set_parent(Some(i));
 
                 let parent = nodes[i].parent();
-                nodes[i] = LbvhNode::new_internal(parent, BoundingBox::EMPTY, left, right);
+                nodes[i] = LinearBvhNode::new_internal(parent, BoundingBox::EMPTY, left, right);
             }
 
             let _ = Self::propagate_bboxes(&mut nodes, 0);
         }
 
-        Lbvh {
+        LinearBvh {
             nodes,
             primitive_indices,
         }
