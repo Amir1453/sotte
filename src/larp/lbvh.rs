@@ -2,10 +2,9 @@
 
 use crate::{
     larp::{Boundable, BoundingBox},
-    math::{Vector, morton::MortonEncoder},
+    math::{MortonEncoder, MortonParameter, RadixSorter, Vector},
 };
 
-#[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum LinearBvhNode {
     Internal {
@@ -103,6 +102,20 @@ impl MortonPrimitive {
     }
 }
 
+impl RadixSorter for Vec<(usize, MortonPrimitive)> {
+    fn radix_sort(&mut self) {
+        crate::math::radix_sort_by_key::<_, _>(self, 3 * <u32>::BITS_PER_AXIS, |(_, code)| {
+            code.morton_code as usize
+        });
+    }
+
+    fn par_radix_sort(&mut self) {
+        crate::math::par_radix_sort_by_key::<_, _>(self, 3 * <u32>::BITS_PER_AXIS, |(_, code)| {
+            code.morton_code as usize
+        });
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LinearBvh {
     nodes: Vec<LinearBvhNode>,
@@ -116,6 +129,78 @@ impl LinearBvh {
         Self {
             nodes: Vec::new(),
             primitive_indices: Vec::new(),
+        }
+    }
+
+    pub fn build<T: Boundable>(primitives: &[T]) -> Self {
+        if primitives.is_empty() {
+            return Self::empty();
+        }
+
+        let primitive_count = primitives.len();
+        let primitive_indices: Vec<usize> = (0..primitive_count).collect();
+
+        let encoder = MortonEncoder::<u32>::new(&primitives.bounding_box());
+
+        let morton_primitives = primitives
+            .iter()
+            .map(|primitive| MortonPrimitive::with_primitive(primitive, &encoder))
+            .collect::<Vec<MortonPrimitive>>();
+
+        let mut zipped: Vec<(usize, MortonPrimitive)> = primitive_indices
+            .into_iter()
+            .zip(morton_primitives)
+            .collect();
+
+        zipped.radix_sort();
+
+        let (primitive_indices, morton_primitives): (Vec<usize>, Vec<MortonPrimitive>) =
+            zipped.into_iter().unzip();
+
+        let mut nodes = vec![LinearBvhNode::EMPTY_LEAF; 2 * primitive_count - 1];
+
+        let leaf_offset = primitive_count - 1;
+        for leaf_idx in 0..primitive_count {
+            let node_idx = leaf_offset + leaf_idx;
+
+            nodes[node_idx] = LinearBvhNode::new_leaf(
+                None,
+                morton_primitives[leaf_idx].bounding_box.clone(),
+                primitive_indices[leaf_idx],
+            );
+        }
+
+        // Build internal topology.
+        if primitive_count > 1 {
+            for i in 0..(primitive_count - 1) {
+                let (first, split, last) =
+                    Self::find_range_and_split(&morton_primitives, &primitive_indices, i);
+
+                let left = if first == split {
+                    leaf_offset + split
+                } else {
+                    split
+                };
+
+                let right = if split + 1 == last {
+                    leaf_offset + split + 1
+                } else {
+                    split + 1
+                };
+
+                nodes[left].set_parent(Some(i));
+                nodes[right].set_parent(Some(i));
+
+                let parent = nodes[i].parent();
+                nodes[i] = LinearBvhNode::new_internal(parent, BoundingBox::EMPTY, left, right);
+            }
+
+            let _ = Self::propagate_bboxes(&mut nodes, 0);
+        }
+
+        LinearBvh {
+            nodes,
+            primitive_indices,
         }
     }
 
@@ -227,78 +312,6 @@ impl LinearBvh {
 
                 bbox
             }
-        }
-    }
-
-    pub fn build<T: Boundable>(primitives: &[T]) -> Self {
-        if primitives.is_empty() {
-            return Self::empty();
-        }
-
-        let primitive_count = primitives.len();
-        let primitive_indices: Vec<usize> = (0..primitive_count).collect();
-
-        let encoder = MortonEncoder::<u32>::new(&primitives.bounding_box());
-
-        let morton_primitives = primitives
-            .iter()
-            .map(|primitive| MortonPrimitive::with_primitive(primitive, &encoder))
-            .collect::<Vec<MortonPrimitive>>();
-
-        let mut zipped: Vec<(usize, MortonPrimitive)> = primitive_indices
-            .into_iter()
-            .zip(morton_primitives)
-            .collect();
-
-        zipped.sort_unstable_by_key(|p| p.1.morton_code);
-
-        let (primitive_indices, morton_primitives): (Vec<usize>, Vec<MortonPrimitive>) =
-            zipped.into_iter().unzip();
-
-        let mut nodes = vec![LinearBvhNode::EMPTY_LEAF; 2 * primitive_count - 1];
-
-        let leaf_offset = primitive_count - 1;
-        for leaf_idx in 0..primitive_count {
-            let node_idx = leaf_offset + leaf_idx;
-
-            nodes[node_idx] = LinearBvhNode::new_leaf(
-                None,
-                morton_primitives[leaf_idx].bounding_box.clone(),
-                primitive_indices[leaf_idx],
-            );
-        }
-
-        // Build internal topology.
-        if primitive_count > 1 {
-            for i in 0..(primitive_count - 1) {
-                let (first, split, last) =
-                    Self::find_range_and_split(&morton_primitives, &primitive_indices, i);
-
-                let left = if first == split {
-                    leaf_offset + split
-                } else {
-                    split
-                };
-
-                let right = if split + 1 == last {
-                    leaf_offset + split + 1
-                } else {
-                    split + 1
-                };
-
-                nodes[left].set_parent(Some(i));
-                nodes[right].set_parent(Some(i));
-
-                let parent = nodes[i].parent();
-                nodes[i] = LinearBvhNode::new_internal(parent, BoundingBox::EMPTY, left, right);
-            }
-
-            let _ = Self::propagate_bboxes(&mut nodes, 0);
-        }
-
-        LinearBvh {
-            nodes,
-            primitive_indices,
         }
     }
 }

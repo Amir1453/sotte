@@ -1,12 +1,16 @@
 use core::f64;
 use std::{cmp::Ordering, marker::PhantomData, ops::*};
 
-use crate::{larp::BoundingBox, math::Vector};
+use crate::{
+    larp::BoundingBox,
+    math::{Vector, radix::RadixSorter},
+};
 
 pub trait MortonParameter
 where
     Self: Copy,
     Self: Sized,
+    Self: Send + Sync,
     Self: PartialEq + Eq + PartialOrd + Ord,
     Self: Add<Output = Self>,
     Self: Sub<Output = Self>,
@@ -32,6 +36,7 @@ where
 {
     const BITS_PER_AXIS: usize;
     const MAX_COORD: f64;
+    const BUCKET_SIZE: usize;
 
     fn voodoo(v: Self) -> Self;
     fn from_f64(v: f64) -> Self;
@@ -41,6 +46,7 @@ where
 impl MortonParameter for u32 {
     const BITS_PER_AXIS: usize = 10;
     const MAX_COORD: f64 = ((1 << Self::BITS_PER_AXIS) - 1) as f64;
+    const BUCKET_SIZE: usize = 6;
 
     #[inline]
     fn voodoo(mut v: u32) -> u32 {
@@ -68,6 +74,7 @@ impl MortonParameter for u32 {
 impl MortonParameter for u64 {
     const BITS_PER_AXIS: usize = 21;
     const MAX_COORD: f64 = ((1 << Self::BITS_PER_AXIS) - 1) as f64;
+    const BUCKET_SIZE: usize = 9;
 
     #[inline]
     fn voodoo(mut v: u64) -> u64 {
@@ -114,54 +121,17 @@ impl<T: MortonParameter> PartialOrd<T> for MortonCode<T> {
     }
 }
 
-pub trait MortonSorter {
-    fn radix_sort(&mut self);
-}
-
-impl<T: MortonParameter> MortonSorter for Vec<MortonCode<T>> {
+impl<T: MortonParameter> RadixSorter for Vec<MortonCode<T>> {
     fn radix_sort(&mut self) {
-        const BUCKET_SIZE: usize = 6;
-        const N_BUCKETS: usize = 1 << BUCKET_SIZE;
-        const MASK: usize = (1 << BUCKET_SIZE) - 1;
-        let passes = (3 * T::BITS_PER_AXIS).div_ceil(BUCKET_SIZE);
+        super::radix::radix_sort_by_key::<_, _>(self, 3 * T::BITS_PER_AXIS, |code| {
+            T::into_usize(code.0)
+        });
+    }
 
-        if self.len() <= 1 {
-            return;
-        }
-
-        let mut source: Vec<MortonCode<T>> = self.to_vec();
-        let mut destination: Vec<MortonCode<T>> = vec![source[0]; self.len()];
-
-        let mut shift = 0;
-        for _ in 0..passes {
-            let mut frequency = [0usize; N_BUCKETS];
-
-            for code in &source {
-                let key: usize = (T::into_usize(code.0) >> shift) & MASK;
-                frequency[key] += 1;
-            }
-
-            let mut start = 0;
-            for bucket_start in &mut frequency {
-                let bucket_count = *bucket_start;
-                *bucket_start = start;
-                start += bucket_count;
-            }
-
-            for code in &source {
-                let key = (T::into_usize(code.0) >> shift) & MASK;
-                let idx = frequency[key];
-
-                destination[idx] = *code;
-                frequency[key] = idx + 1;
-            }
-
-            std::mem::swap(&mut source, &mut destination);
-
-            shift += BUCKET_SIZE;
-        }
-
-        std::mem::swap(&mut source, self);
+    fn par_radix_sort(&mut self) {
+        super::radix::par_radix_sort_by_key::<_, _>(self, 3 * T::BITS_PER_AXIS, |code| {
+            T::into_usize(code.0)
+        });
     }
 }
 

@@ -538,12 +538,12 @@ impl Bvh {
             }
         }
 
-        if best_bucket.is_none() || best_cost >= leaf_cost {
+        if best_cost >= leaf_cost {
             return None;
         }
 
-        let split_plane = centroid_min
-            + centroid_extent * ((best_bucket.unwrap() + 1) as f64 / Bucket::COUNT as f64);
+        let split_plane =
+            centroid_min + centroid_extent * ((best_bucket? + 1) as f64 / Bucket::COUNT as f64);
 
         let mut left = start;
         let mut right = end - 1;
