@@ -363,14 +363,17 @@ impl Bvh {
 
     pub fn intersect_ray(&self, ray: &Ray, t_min: f64, t_max: f64) -> Vec<usize> {
         let mut hits = Vec::with_capacity(10);
+
         if self.nodes.is_empty() {
             return hits;
         }
 
-        let mut stack: Vec<u32> = Vec::with_capacity(64);
-        stack.push(0);
+        let mut stack = [0u32; 64];
+        let mut rsp = 1usize;
 
-        while let Some(node_index) = stack.pop() {
+        while rsp > 0 {
+            rsp -= 1;
+            let node_index = stack[rsp];
             let node = &self.nodes[node_index as usize];
 
             if !node.bounding_box().is_intersecting(ray, t_min, t_max) {
@@ -384,8 +387,9 @@ impl Bvh {
                     }
                 }
                 FlatNode::Internal { left, right, .. } => {
-                    stack.push(*right);
-                    stack.push(*left);
+                    stack[rsp] = *right;
+                    rsp += 2;
+                    stack[rsp - 1] = *left;
                 }
             }
         }
@@ -573,6 +577,9 @@ impl Bvh {
 
 impl Boundable for Bvh {
     fn bounding_box(&self) -> BoundingBox {
-        self.nodes[0].bounding_box()
+        self.nodes
+            .first()
+            .map(Boundable::bounding_box)
+            .unwrap_or(BoundingBox::EMPTY)
     }
 }

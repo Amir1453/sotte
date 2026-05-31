@@ -172,6 +172,10 @@ impl<T: MortonParameter> MortonEncoder<T> {
     }
 }
 
+/// SAFETY
+/// MortonEncoder exposes no interior mutability via encode.
+unsafe impl<T: MortonParameter> Sync for MortonEncoder<T> {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

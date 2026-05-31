@@ -22,5 +22,18 @@ criterion_group!(
     bvh_traversal::par_lucky,
     bvh_traversal::par_maria,
     // LBVH Build
+    lbvh_build::seq_cat,
+    lbvh_build::seq_lucky,
+    lbvh_build::seq_maria,
+    lbvh_build::par_cat,
+    lbvh_build::par_lucky,
+    lbvh_build::par_maria,
+    // LBVH Traversal
+    lbvh_traversal::seq_cat,
+    lbvh_traversal::seq_lucky,
+    lbvh_traversal::seq_maria,
+    lbvh_traversal::par_cat,
+    lbvh_traversal::par_lucky,
+    lbvh_traversal::par_maria,
 );
 criterion_main!(benches);
