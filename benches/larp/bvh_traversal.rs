@@ -5,104 +5,94 @@ use renderer::larp::{Boundable, Bvh};
 
 use crate::common;
 
-// Sequential Traversal benchmarks
-
 const RAY_COUNT: usize = 100_000;
 
-pub fn seq_cat(c: &mut Criterion) {
+pub fn cat(c: &mut Criterion) {
     let mesh = common::cat().build_soup();
-    let bvh = Bvh::build_seq(&mesh);
-    let root_bbox = bvh.bounding_box();
 
-    let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
+    let seq_bvh = Bvh::build_seq(&mesh);
+    let seq_rays = common::rays_into_bbox(seq_bvh.bounding_box(), RAY_COUNT);
 
-    c.bench_function("<Sequential BVH Traversal: Cat>", |b| {
+    let par_bvh = Bvh::build_par(&mesh);
+    let par_rays = common::rays_into_bbox(par_bvh.bounding_box(), RAY_COUNT);
+
+    let mut group = c.benchmark_group("BVH Traversal: Cat");
+
+    group.bench_function("seq_build", |b| {
         b.iter(|| {
-            for ray in &rays {
-                black_box(bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
+            for ray in &seq_rays {
+                black_box(seq_bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
             }
         });
     });
+
+    group.bench_function("par_build", |b| {
+        b.iter(|| {
+            for ray in &par_rays {
+                black_box(par_bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
+            }
+        });
+    });
+
+    group.finish();
 }
 
-pub fn seq_lucky(c: &mut Criterion) {
+pub fn lucky(c: &mut Criterion) {
     let mesh = common::lucky().build_soup();
-    let bvh = Bvh::build_seq(&mesh);
-    let root_bbox = bvh.bounding_box();
 
-    let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
+    let seq_bvh = Bvh::build_seq(&mesh);
+    let seq_rays = common::rays_into_bbox(seq_bvh.bounding_box(), RAY_COUNT);
 
-    c.bench_function("<Sequential BVH Traversal: Lucky>", |b| {
+    let par_bvh = Bvh::build_par(&mesh);
+    let par_rays = common::rays_into_bbox(par_bvh.bounding_box(), RAY_COUNT);
+
+    let mut group = c.benchmark_group("BVH Traversal: Lucky");
+
+    group.bench_function("seq_build", |b| {
         b.iter(|| {
-            for ray in &rays {
-                black_box(bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
+            for ray in &seq_rays {
+                black_box(seq_bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
             }
         });
     });
+
+    group.bench_function("par_build", |b| {
+        b.iter(|| {
+            for ray in &par_rays {
+                black_box(par_bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
+            }
+        });
+    });
+
+    group.finish();
 }
 
-pub fn seq_maria(c: &mut Criterion) {
+pub fn maria(c: &mut Criterion) {
     let mesh = common::maria().build_soup();
-    let bvh = Bvh::build_seq(&mesh);
-    let root_bbox = bvh.bounding_box();
 
-    let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
+    let seq_bvh = Bvh::build_seq(&mesh);
+    let seq_rays = common::rays_into_bbox(seq_bvh.bounding_box(), RAY_COUNT);
 
-    c.bench_function("<Sequential BVH Traversal: Maria>", |b| {
+    let par_bvh = Bvh::build_par(&mesh);
+    let par_rays = common::rays_into_bbox(par_bvh.bounding_box(), RAY_COUNT);
+
+    let mut group = c.benchmark_group("BVH Traversal: Maria");
+
+    group.bench_function("seq_build", |b| {
         b.iter(|| {
-            for ray in &rays {
-                black_box(bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
+            for ray in &seq_rays {
+                black_box(seq_bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
             }
         });
     });
-}
 
-// Parallel Traversal benchmarks
-
-pub fn par_cat(c: &mut Criterion) {
-    let mesh = common::cat().build_soup();
-    let bvh = Bvh::build_par(&mesh);
-    let root_bbox = bvh.bounding_box();
-
-    let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
-
-    c.bench_function("<Parallel BVH Traversal: Cat>", |b| {
+    group.bench_function("par_build", |b| {
         b.iter(|| {
-            for ray in &rays {
-                black_box(bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
+            for ray in &par_rays {
+                black_box(par_bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
             }
         });
     });
-}
 
-pub fn par_lucky(c: &mut Criterion) {
-    let mesh = common::lucky().build_soup();
-    let bvh = Bvh::build_par(&mesh);
-    let root_bbox = bvh.bounding_box();
-
-    let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
-
-    c.bench_function("<Parallel BVH Traversal: Lucky>", |b| {
-        b.iter(|| {
-            for ray in &rays {
-                black_box(bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
-            }
-        });
-    });
-}
-
-pub fn par_maria(c: &mut Criterion) {
-    let mesh = common::maria().build_soup();
-    let bvh = Bvh::build_par(&mesh);
-    let root_bbox = bvh.bounding_box();
-
-    let rays = common::rays_into_bbox(root_bbox, RAY_COUNT);
-
-    c.bench_function("<Parallel BVH Traversal: Maria>", |b| {
-        b.iter(|| {
-            for ray in &rays {
-                black_box(bvh.intersect_ray(ray, f64::EPSILON, f64::INFINITY));
-            }
-        });
-    });
+    group.finish();
 }

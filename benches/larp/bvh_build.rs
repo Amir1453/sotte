@@ -5,66 +5,62 @@ use renderer::larp::Bvh;
 
 use crate::common;
 
-// Sequential BVH Building benchmarks
-
-pub fn seq_cat(c: &mut Criterion) {
+pub fn cat(c: &mut Criterion) {
     let mesh = common::cat().build_soup();
 
-    c.bench_function("<Sequential BVH Build: Cat>", |b| {
+    let mut group = c.benchmark_group("BVH Build: Cat");
+
+    group.bench_function("seq", |b| {
         b.iter(|| {
             black_box(Bvh::build_seq(black_box(&mesh)));
         });
     });
+
+    group.bench_function("par", |b| {
+        b.iter(|| {
+            black_box(Bvh::build_par(black_box(&mesh)));
+        });
+    });
+
+    group.finish();
 }
 
-pub fn seq_lucky(c: &mut Criterion) {
+pub fn lucky(c: &mut Criterion) {
     let mesh = common::lucky().build_soup();
 
-    c.bench_function("<Sequential BVH Build: Lucky>", |b| {
+    let mut group = c.benchmark_group("BVH Build: Lucky");
+
+    group.bench_function("seq", |b| {
         b.iter(|| {
             black_box(Bvh::build_seq(black_box(&mesh)));
         });
     });
+
+    group.bench_function("par", |b| {
+        b.iter(|| {
+            black_box(Bvh::build_par(black_box(&mesh)));
+        });
+    });
+
+    group.finish();
 }
 
-pub fn seq_maria(c: &mut Criterion) {
+pub fn maria(c: &mut Criterion) {
     let mesh = common::maria().build_soup();
 
-    c.bench_function("<Sequential BVH Build: Maria>", |b| {
+    let mut group = c.benchmark_group("BVH Build: Maria");
+
+    group.bench_function("seq", |b| {
         b.iter(|| {
             black_box(Bvh::build_seq(black_box(&mesh)));
         });
     });
-}
 
-// Parallel BVH Building benchmarks
-
-pub fn par_cat(c: &mut Criterion) {
-    let mesh = common::cat().build_soup();
-
-    c.bench_function("<Parallel BVH Build: Cat>", |b| {
+    group.bench_function("par", |b| {
         b.iter(|| {
             black_box(Bvh::build_par(black_box(&mesh)));
         });
     });
-}
 
-pub fn par_lucky(c: &mut Criterion) {
-    let mesh = common::lucky().build_soup();
-
-    c.bench_function("<Parallel BVH Build: Lucky>", |b| {
-        b.iter(|| {
-            black_box(Bvh::build_par(black_box(&mesh)));
-        });
-    });
-}
-
-pub fn par_maria(c: &mut Criterion) {
-    let mesh = common::maria().build_soup();
-
-    c.bench_function("<Parallel BVH Build: Maria>", |b| {
-        b.iter(|| {
-            black_box(Bvh::build_par(black_box(&mesh)));
-        });
-    });
+    group.finish();
 }

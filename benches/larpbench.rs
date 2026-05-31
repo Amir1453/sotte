@@ -8,32 +8,26 @@ use crate::larp::*;
 criterion_group!(
     benches,
     // BVH Build
-    bvh_build::seq_cat,
-    bvh_build::seq_lucky,
-    bvh_build::seq_maria,
-    bvh_build::par_cat,
-    bvh_build::par_lucky,
-    bvh_build::par_maria,
+    bvh_build::cat,
+    bvh_build::lucky,
+    bvh_build::maria,
     // BVH Traversal
-    bvh_traversal::seq_cat,
-    bvh_traversal::seq_lucky,
-    bvh_traversal::seq_maria,
-    bvh_traversal::par_cat,
-    bvh_traversal::par_lucky,
-    bvh_traversal::par_maria,
+    bvh_traversal::cat,
+    bvh_traversal::lucky,
+    bvh_traversal::maria,
     // LBVH Build
-    lbvh_build::seq_cat,
-    lbvh_build::seq_lucky,
-    lbvh_build::seq_maria,
-    lbvh_build::par_cat,
-    lbvh_build::par_lucky,
-    lbvh_build::par_maria,
+    lbvh_build::cat,
+    lbvh_build::lucky,
+    lbvh_build::maria,
     // LBVH Traversal
-    lbvh_traversal::seq_cat,
-    lbvh_traversal::seq_lucky,
-    lbvh_traversal::seq_maria,
-    lbvh_traversal::par_cat,
-    lbvh_traversal::par_lucky,
-    lbvh_traversal::par_maria,
+    lbvh_traversal::cat,
+    lbvh_traversal::lucky,
+    lbvh_traversal::maria,
+    // Cross Build
+    cross::build_seq_bvh_lbvh,
+    cross::build_par_bvh_lbvh,
+    // Cross Traversal
+    cross::traversal_seq_bvh_lbvh,
+    cross::traversal_par_bvh_lbvh,
 );
 criterion_main!(benches);

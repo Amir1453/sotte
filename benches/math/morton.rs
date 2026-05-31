@@ -10,10 +10,11 @@ use crate::common::*;
 
 // Sequential Morton Code sorting on u32
 
-pub fn stable_sort_lucky_u32(c: &mut Criterion) {
+pub fn compare_sort_lucky_u32(c: &mut Criterion) {
     let morton_codes = mortonic_lucky::<u32>();
+    let mut group = c.benchmark_group("MortonCode<u32> Lucky");
 
-    c.bench_function("<std::sort on Morton Codes: Lucky u32>", |b| {
+    group.bench_function("std::sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -23,12 +24,8 @@ pub fn stable_sort_lucky_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-}
 
-pub fn unstable_sort_lucky_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_lucky::<u32>();
-
-    c.bench_function("<std::unstable_sort on Morton Codes: Lucky u32>", |b| {
+    group.bench_function("std::sort_unstable", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -38,12 +35,8 @@ pub fn unstable_sort_lucky_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-}
 
-pub fn radix_sort_lucky_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_lucky::<u32>();
-
-    c.bench_function("<Radix Sort on Morton Codes: Lucky u32>", |b| {
+    group.bench_function("radix_sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -53,12 +46,16 @@ pub fn radix_sort_lucky_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
+
+    group.finish();
 }
 
-pub fn stable_sort_maria_u32(c: &mut Criterion) {
+pub fn compare_sort_maria_u32(c: &mut Criterion) {
     let morton_codes = mortonic_maria::<u32>();
 
-    c.bench_function("<std::sort on Morton Codes: Maria u32>", |b| {
+    let mut group = c.benchmark_group("MortonCode<u32> Maria");
+
+    group.bench_function("std::sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -68,12 +65,8 @@ pub fn stable_sort_maria_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-}
 
-pub fn unstable_sort_maria_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_maria::<u32>();
-
-    c.bench_function("<std::unstable_sort on Morton Codes: Maria u32>", |b| {
+    group.bench_function("std::sort_unstable", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -83,12 +76,8 @@ pub fn unstable_sort_maria_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-}
 
-pub fn radix_sort_maria_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_maria::<u32>();
-
-    c.bench_function("<Radix Sort on Morton Codes: Maria u32>", |b| {
+    group.bench_function("radix_sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -98,14 +87,18 @@ pub fn radix_sort_maria_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
+
+    group.finish();
 }
 
 // Parallel Morton Code sorting on u32
 
-pub fn par_stable_sort_lucky_u32(c: &mut Criterion) {
+pub fn compare_par_sort_lucky_u32(c: &mut Criterion) {
     let morton_codes = mortonic_lucky::<u32>();
 
-    c.bench_function("<rayon::par_sort on Morton Codes: Lucky u32>", |b| {
+    let mut group = c.benchmark_group("par MortonCode<u32> Lucky");
+
+    group.bench_function("rayon::par_sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -115,30 +108,19 @@ pub fn par_stable_sort_lucky_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-}
 
-pub fn par_unstable_sort_lucky_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_lucky::<u32>();
+    group.bench_function("rayon::par_sort_unstable", |b| {
+        b.iter_batched(
+            || morton_codes.clone(),
+            |mut codes| {
+                codes.par_sort_unstable();
+                black_box(codes)
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
 
-    c.bench_function(
-        "<rayon::par_sort_unstable on Morton Codes: Lucky u32>",
-        |b| {
-            b.iter_batched(
-                || morton_codes.clone(),
-                |mut codes| {
-                    codes.par_sort_unstable();
-                    black_box(codes)
-                },
-                criterion::BatchSize::SmallInput,
-            );
-        },
-    );
-}
-
-pub fn par_radix_sort_lucky_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_lucky::<u32>();
-
-    c.bench_function("<Parallel Radix Sort on Morton Codes: Lucky u32>", |b| {
+    group.bench_function("par_radix_sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -148,12 +130,16 @@ pub fn par_radix_sort_lucky_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
+
+    group.finish();
 }
 
-pub fn par_stable_sort_maria_u32(c: &mut Criterion) {
+pub fn compare_par_sort_maria_u32(c: &mut Criterion) {
     let morton_codes = mortonic_maria::<u32>();
 
-    c.bench_function("<rayon::par_sort on Morton Codes: Maria u32>", |b| {
+    let mut group = c.benchmark_group("par MortonCode<u32> Maria");
+
+    group.bench_function("rayon::par_sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -163,30 +149,19 @@ pub fn par_stable_sort_maria_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
-}
 
-pub fn par_unstable_sort_maria_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_maria::<u32>();
+    group.bench_function("rayon::par_sort_unstable", |b| {
+        b.iter_batched(
+            || morton_codes.clone(),
+            |mut codes| {
+                codes.par_sort_unstable();
+                black_box(codes)
+            },
+            criterion::BatchSize::SmallInput,
+        );
+    });
 
-    c.bench_function(
-        "<rayon::par_sort_unstable on Morton Codes: Maria u32>",
-        |b| {
-            b.iter_batched(
-                || morton_codes.clone(),
-                |mut codes| {
-                    codes.par_sort_unstable();
-                    black_box(codes)
-                },
-                criterion::BatchSize::SmallInput,
-            );
-        },
-    );
-}
-
-pub fn par_radix_sort_maria_u32(c: &mut Criterion) {
-    let morton_codes = mortonic_maria::<u32>();
-
-    c.bench_function("<Parallel Radix Sort on Morton Codes: Maria u32>", |b| {
+    group.bench_function("par_radix_sort", |b| {
         b.iter_batched(
             || morton_codes.clone(),
             |mut codes| {
@@ -196,6 +171,8 @@ pub fn par_radix_sort_maria_u32(c: &mut Criterion) {
             criterion::BatchSize::SmallInput,
         );
     });
+
+    group.finish();
 }
 
 // Morton Code sorting on u64
