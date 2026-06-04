@@ -4,7 +4,7 @@ use std::{collections::HashMap, mem::take};
 use crate::{
     Material,
     geometry::{ComputeIntersection, Intersection, Object},
-    larp::{Bvh, LinearBvh},
+    larp::{Bvh},
     material::MaterialIndex,
     math::{Ray, Vector},
     scene::Scene,
@@ -79,7 +79,7 @@ impl crate::larp::Boundable for TriangleSoup {
 #[derive(Debug)]
 pub struct TriangleMesh {
     triangles: Vec<TriangleSoup>,
-    bvh: LinearBvh,
+    bvh: Bvh,
 }
 
 impl TriangleMesh {
@@ -88,7 +88,7 @@ impl TriangleMesh {
     pub const fn empty() -> Self {
         Self {
             triangles: Vec::new(),
-            bvh: LinearBvh::empty(),
+            bvh: Bvh::empty(),
         }
     }
 
@@ -97,7 +97,7 @@ impl TriangleMesh {
     pub const fn with_triangles(triangles: Vec<TriangleSoup>) -> Self {
         Self {
             triangles,
-            bvh: LinearBvh::empty(),
+            bvh: Bvh::empty(),
         }
     }
 }
@@ -242,9 +242,9 @@ impl TriangleMeshBuilder {
     pub fn build(self) -> Object {
         let mut mesh = TriangleMesh {
             triangles: self.triangles,
-            bvh: LinearBvh::empty(),
+            bvh: Bvh::empty(),
         };
-        mesh.bvh = LinearBvh::build_par(&mesh.triangles);
+        mesh.bvh = Bvh::build_par(&mesh.triangles);
 
         Object::TriangleMesh(mesh)
     }
