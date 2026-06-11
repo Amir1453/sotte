@@ -138,19 +138,7 @@ impl LinearBvh {
 
         // Build internal topology.
         for i in 0..(primitive_count - 1) {
-            let (first, split, last) = Self::find_range_and_split(&morton_primitives, i);
-
-            let left = if first == split {
-                leaf_offset + split
-            } else {
-                split
-            };
-
-            let right = if split + 1 == last {
-                leaf_offset + split + 1
-            } else {
-                split + 1
-            };
+            let (left, right) = Self::find_range_and_split(&morton_primitives, i, leaf_offset);
 
             nodes[i] = LinearBvhNode::new_internal(BoundingBox::EMPTY, left, right);
         }
@@ -191,7 +179,7 @@ impl LinearBvh {
             .par_iter_mut()
             .enumerate()
             .for_each(|(leaf_index, node)| {
-                let prim_idx = morton_primitives[leaf_index].primitive_index as usize;
+                let prim_idx = morton_primitives[leaf_index].primitive_index;
 
                 *node = LinearBvhNode::new_leaf(cached_bboxes[prim_idx].clone(), prim_idx);
             });
@@ -200,19 +188,7 @@ impl LinearBvh {
             .par_iter_mut()
             .enumerate()
             .for_each(|(i, node)| {
-                let (first, split, last) = Self::find_range_and_split(&morton_primitives, i);
-
-                let left = if first == split {
-                    leaf_offset + split
-                } else {
-                    split
-                };
-
-                let right = if split + 1 == last {
-                    leaf_offset + split + 1
-                } else {
-                    split + 1
-                };
+                let (left, right) = Self::find_range_and_split(&morton_primitives, i, leaf_offset);
 
                 *node = LinearBvhNode::new_internal(BoundingBox::EMPTY, left, right);
             });
@@ -223,62 +199,69 @@ impl LinearBvh {
     }
 
     #[inline]
-    fn delta(morton_primitives: &[MortonPrimitive], i: isize, j: isize) -> i32 {
-        if j < 0 || j >= morton_primitives.len() as isize {
-            return -1;
-        }
-
-        let a = ((morton_primitives[i as usize].morton_code as u64) << 32)
-            | (morton_primitives[i as usize].primitive_index as u64);
-
-        let b = ((morton_primitives[j as usize].morton_code as u64) << 32)
-            | (morton_primitives[j as usize].primitive_index as u64);
-
-        (a ^ b).leading_zeros() as i32
-    }
-
-    #[inline]
     fn find_range_and_split(
         morton_primitives: &[MortonPrimitive],
         i: usize,
-    ) -> (usize, usize, usize) {
+        leaf_offset: usize,
+    ) -> (usize, usize) {
         let i = i as isize;
 
-        let delta_left = Self::delta(morton_primitives, i, i - 1);
-        let delta_right = Self::delta(morton_primitives, i, i + 1);
+        // delta(i, j) computes the number of common leading bits
+        let delta = |i: isize, j: isize| {
+            if j < 0 || j >= morton_primitives.len() as isize {
+                return -1;
+            }
 
+            let a = ((morton_primitives[i as usize].morton_code as u64) << 32)
+                | (morton_primitives[i as usize].primitive_index as u64);
+
+            let b = ((morton_primitives[j as usize].morton_code as u64) << 32)
+                | (morton_primitives[j as usize].primitive_index as u64);
+
+            (a ^ b).leading_zeros() as i32
+        };
+
+        let delta_left = delta(i, i - 1);
+        let delta_right = delta(i, i + 1);
+
+        // We extend towards the side with greater number of common bits
         let d: isize = if delta_right > delta_left { 1 } else { -1 };
-        let delta_min = Self::delta(morton_primitives, i, i - d);
+        let delta_min = delta(i, i - d);
 
+        // Exponential search until overshoot
         let mut l_max: isize = 2;
-        while Self::delta(morton_primitives, i, i + l_max * d) > delta_min {
+        while delta(i, i + l_max * d) > delta_min {
             l_max *= 2;
         }
 
+        // Find exact position with binary search, before the overshoot
         let mut l: isize = 0;
         let mut step = l_max / 2;
         while step > 0 {
-            if Self::delta(morton_primitives, i, i + (l + step) * d) > delta_min {
+            if delta(i, i + (l + step) * d) > delta_min {
                 l += step;
             }
             step /= 2;
         }
 
+        // Find the range of primitives covered by the internal node
         let j = i + l * d;
         let first = i.min(j) as usize;
         let last = i.max(j) as usize;
 
-        let delta_node = Self::delta(morton_primitives, first as isize, last as isize);
+        // Compute number of common leading bits of entire range
+        let delta_node = delta(first as isize, last as isize);
 
         let mut split = first as isize;
         let mut span = (last - first) as isize;
 
+        // Find the largest split point such that delta(first, split) > delta(first, last)
         while span > 1 {
             span = (span + 1) / 2;
             let new_split = split + span;
 
             if new_split < last as isize {
-                let delta_split = Self::delta(morton_primitives, first as isize, new_split);
+                let delta_split = delta(first as isize, new_split);
 
                 if delta_split > delta_node {
                     split = new_split;
@@ -286,16 +269,28 @@ impl LinearBvh {
             }
         }
 
-        (first, split as usize, last)
+        let split = split as usize;
+
+        let left = if first == split {
+            leaf_offset + split
+        } else {
+            split
+        };
+
+        let right = if split + 1 == last {
+            leaf_offset + split + 1
+        } else {
+            split + 1
+        };
+
+        (left, right)
     }
 
     #[inline]
     #[must_use]
     fn propagate_bboxes(nodes: &mut [LinearBvhNode], node_index: u32) -> BoundingBox {
         match &nodes[node_index as usize] {
-            LinearBvhNode::Leaf { bbox, .. } => {
-                return bbox.clone();
-            }
+            LinearBvhNode::Leaf { bbox, .. } => bbox.clone(),
 
             LinearBvhNode::Internal { left, right, .. } => {
                 let left = *left;

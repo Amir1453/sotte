@@ -349,7 +349,7 @@ impl Bvh {
             base + split_position,
         );
 
-        return BuildNode::new_internal(bbox, left, right);
+        BuildNode::new_internal(bbox, left, right)
     }
 
     fn compute_bbox(primitives: &[CachedPrimitive], primitive_indices: &[usize]) -> BoundingBox {
