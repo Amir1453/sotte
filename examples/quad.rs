@@ -1,7 +1,7 @@
 use core::f64::consts::PI;
 
-use renderer::{ImageRenderer, Material, QuadBuilder, SceneBuilder, TriangleMeshBuilder};
-use renderer::{RenderConfig, SceneConfig, render_config, scene_config};
+use sotte::{ImageRenderer, Material, QuadBuilder, SceneBuilder, TriangleMeshBuilder};
+use sotte::{RenderConfig, SceneConfig, render_config, scene_config};
 
 render_config!(RConf, width: 512, height: 512, samples: 30);
 scene_config!(SConf);
