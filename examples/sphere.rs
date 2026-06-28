@@ -1,7 +1,7 @@
 use core::f64::consts::PI;
 
-use renderer::{ImageRenderer, Material, SceneBuilder, SphereBuilder};
-use renderer::{RenderConfig, SceneConfig, render_config, scene_config};
+use sotte::{ImageRenderer, Material, SceneBuilder, SphereBuilder};
+use sotte::{RenderConfig, SceneConfig, render_config, scene_config};
 
 render_config!(RConf, width: 512, height: 512, samples: 1000);
 scene_config!(SConf);
