@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicU8;
+
 use crate::{
     larp::{Boundable, BoundingBox},
     math::{MortonEncoder, MortonParameter, RadixSorter, Ray},
@@ -55,7 +57,7 @@ impl Boundable for LinearBvhNode {
 #[derive(Debug, Clone)]
 pub struct MortonPrimitive {
     morton_code: u32,
-    primitive_index: usize,
+    primitive_index: u32,
 }
 
 impl PartialEq for MortonPrimitive {
@@ -120,7 +122,7 @@ impl LinearBvh {
             .enumerate()
             .map(|(primitive_index, bbox)| MortonPrimitive {
                 morton_code: encoder.encode(&bbox.center()).0,
-                primitive_index,
+                primitive_index: primitive_index as u32,
             })
             .collect();
 
@@ -138,7 +140,7 @@ impl LinearBvh {
 
         // Build internal topology.
         for i in 0..(primitive_count - 1) {
-            let (left, right) = Self::find_range_and_split(&morton_primitives, i, leaf_offset);
+            let (left, right) = Self::find_split(&morton_primitives, i, leaf_offset);
 
             nodes[i] = LinearBvhNode::new_internal(BoundingBox::EMPTY, left, right);
         }
@@ -166,11 +168,11 @@ impl LinearBvh {
             .enumerate()
             .map(|(primitive_index, bbox)| MortonPrimitive {
                 morton_code: encoder.encode(&bbox.center()).0,
-                primitive_index,
+                primitive_index: primitive_index as u32,
             })
             .collect();
 
-        morton_primitives.par_sort();
+        morton_primitives.par_radix_sort();
 
         let leaf_offset = primitive_count - 1;
         let mut nodes = vec![LinearBvhNode::EMPTY_LEAF; 2 * primitive_count - 1];
@@ -179,7 +181,7 @@ impl LinearBvh {
             .par_iter_mut()
             .enumerate()
             .for_each(|(leaf_index, node)| {
-                let prim_idx = morton_primitives[leaf_index].primitive_index;
+                let prim_idx = morton_primitives[leaf_index].primitive_index as usize;
 
                 *node = LinearBvhNode::new_leaf(cached_bboxes[prim_idx].clone(), prim_idx);
             });
@@ -188,7 +190,7 @@ impl LinearBvh {
             .par_iter_mut()
             .enumerate()
             .for_each(|(i, node)| {
-                let (left, right) = Self::find_range_and_split(&morton_primitives, i, leaf_offset);
+                let (left, right) = Self::find_split(&morton_primitives, i, leaf_offset);
 
                 *node = LinearBvhNode::new_internal(BoundingBox::EMPTY, left, right);
             });
@@ -199,7 +201,7 @@ impl LinearBvh {
     }
 
     #[inline]
-    fn find_range_and_split(
+    fn find_split(
         morton_primitives: &[MortonPrimitive],
         i: usize,
         leaf_offset: usize,
@@ -311,6 +313,88 @@ impl LinearBvh {
                 bbox
             }
         }
+    }
+
+    #[inline]
+    #[must_use]
+    #[allow(unused)]
+    fn par_propagate_bboxes(nodes: &mut [LinearBvhNode]) {
+        use rayon::prelude::*;
+
+        // const THREAD_COUNT: usize = 20;
+        let node_count = nodes.len();
+        let internal_node_count = node_count / 2;
+        // let leaf_node_count = node_count - internal_node_count;
+        // let chunk_size = leaf_node_count / THREAD_COUNT;
+
+        // Build the parent array such that parents[i] is parent of nodes[i]
+        let mut parents = vec![0; node_count];
+
+        let mut stack = Vec::with_capacity(64);
+        stack.push(0);
+
+        while let Some(i) = stack.pop() {
+            if let LinearBvhNode::Internal { left, right, .. } = nodes[i] {
+                let l = left as usize;
+                let r = right as usize;
+
+                parents[l] = i;
+                parents[r] = i;
+
+                stack.push(l);
+                stack.push(r);
+            }
+        }
+
+        // Build the atomics array for internal nodes
+        let atomics = (0..internal_node_count)
+            .map(|_| AtomicU8::new(0))
+            .collect::<Vec<_>>();
+
+        let node_addr = nodes.as_mut_ptr() as usize;
+        (internal_node_count..node_count)
+            .into_par_iter()
+            .for_each(|leaf_index| {
+                let mut node_index = leaf_index;
+
+                loop {
+                    let parent_index = parents[node_index];
+                    let parent_node = &nodes[parent_index];
+
+                    let prev =
+                        atomics[parent_index].fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+
+                    if prev == 0 {
+                        return;
+                    }
+
+                    let parent_bbox = match parent_node {
+                        LinearBvhNode::Internal { left, right, .. } => {
+                            let left_bbox = nodes[*left as usize].bounding_box();
+                            let right_bbox = nodes[*right as usize].bounding_box();
+
+                            left_bbox.union(&right_bbox)
+                        }
+
+                        _ => unreachable!(),
+                    };
+
+                    unsafe {
+                        let parent_node =
+                            &mut *((node_addr as *mut LinearBvhNode).add(parent_index));
+
+                        if let LinearBvhNode::Internal { bbox, .. } = parent_node {
+                            *bbox = parent_bbox;
+                        }
+                    }
+
+                    node_index = parent_index;
+
+                    if node_index == 0 {
+                        return;
+                    }
+                }
+            });
     }
 
     pub fn intersect_ray(&self, ray: &Ray, t_min: f64, t_max: f64) -> Vec<usize> {
