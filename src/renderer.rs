@@ -17,8 +17,9 @@ impl ImageRenderer {
     ) -> [u8; IMAGE_SIZE] {
         let mut image: [u8; IMAGE_SIZE] = [0; IMAGE_SIZE];
 
+        let gamma = scene.get_gamma();
         let gamma_correction = |channel: f64| -> u8 {
-            (255.0 * (channel / 255.0).powf(1.0 / scene.get_gamma())).clamp(0.0, 255.0) as u8
+            (255.0 * (channel / 255.0).powf(1.0 / gamma)).clamp(0.0, 255.0) as u8
         };
 
         let camera_center = scene.get_camera_center();
