@@ -19,7 +19,7 @@ impl<T: Boundable> Boundable for &[T] {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct BoundingBox {
     pub min: Vector,
     pub max: Vector,

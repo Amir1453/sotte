@@ -1,3 +1,4 @@
+mod aabb;
 mod intersection;
 mod mesh;
 mod object;
@@ -8,10 +9,12 @@ pub use intersection::{ComputeIntersection, Intersection};
 
 pub use object::Object;
 
+use aabb::Aabb;
 use mesh::TriangleMesh;
 use quad::Quad;
 use sphere::Sphere;
 
+pub use aabb::AabbBuilder;
 pub use mesh::TriangleMeshBuilder;
 pub use quad::QuadBuilder;
 pub use sphere::SphereBuilder;

@@ -1,4 +1,4 @@
-mod aabb;
+pub mod aabb;
 pub mod bvh;
 pub mod lbvh;
 

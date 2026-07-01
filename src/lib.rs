@@ -7,6 +7,7 @@ pub mod geometry;
 pub mod larp;
 pub mod math;
 
+pub use geometry::AabbBuilder;
 pub use geometry::QuadBuilder;
 pub use geometry::SphereBuilder;
 pub use geometry::TriangleMeshBuilder;

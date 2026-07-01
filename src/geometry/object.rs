@@ -1,12 +1,13 @@
+use crate::geometry::{Aabb, Quad, Sphere, TriangleMesh};
 use crate::geometry::{ComputeIntersection, Intersection};
-use crate::geometry::{Quad, Sphere, TriangleMesh};
 use crate::material::MaterialIndex;
 use crate::math::{Ray, SurfaceSampleable, Vector};
 
 #[derive(Debug)]
 pub enum Object {
-    Sphere(Sphere),
+    Aabb(Aabb),
     Quad(Quad),
+    Sphere(Sphere),
     TriangleMesh(TriangleMesh),
 }
 
@@ -17,16 +18,18 @@ impl ComputeIntersection for Object {
 
     fn intersect(&self, ray: &Ray) -> Option<Intersection<Self::Index>> {
         match self {
-            Object::Sphere(sphere) => sphere.intersect(ray),
+            Object::Aabb(bbox) => bbox.intersect(ray),
             Object::Quad(quad) => quad.intersect(ray),
+            Object::Sphere(sphere) => sphere.intersect(ray),
             Object::TriangleMesh(mesh) => mesh.intersect(ray),
         }
     }
 
     fn shadow_intersect(&self, ray: &Ray) -> Option<f64> {
         match self {
-            Object::Sphere(sphere) => sphere.shadow_intersect(ray),
+            Object::Aabb(bbox) => bbox.shadow_intersect(ray),
             Object::Quad(quad) => quad.shadow_intersect(ray),
+            Object::Sphere(sphere) => sphere.shadow_intersect(ray),
             Object::TriangleMesh(mesh) => mesh.shadow_intersect(ray),
         }
     }
@@ -35,8 +38,9 @@ impl ComputeIntersection for Object {
 impl SurfaceSampleable for Object {
     fn sample(&self) -> (Vector, Vector) {
         match self {
-            Object::Sphere(sphere) => sphere.sample(),
+            Object::Aabb(_) => todo!(),
             Object::Quad(quad) => quad.sample(),
+            Object::Sphere(sphere) => sphere.sample(),
             Object::TriangleMesh(_) => todo!(),
         }
     }
