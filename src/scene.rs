@@ -1,6 +1,7 @@
 use core::f64;
 
 use crate::geometry::{ComputeIntersection, Intersection, Object};
+use crate::larp::Bvh;
 use crate::material::{Material, MaterialIndex, MaterialLike};
 use crate::math::{Ray, Vector};
 use crate::texture::TextureLike;
@@ -13,13 +14,18 @@ pub struct Scene {
     lights: Vec<usize>,
     materials: Vec<Material>,
 
+    accelerator: Bvh,
+
+    // TODO Replace by the Camera class
     camera_center: Vector,
     light_position: Vector,
-
     fov: f64,
     gamma: f64,
+
+    // TODO Light sources in self.lights
     light_intensity: f64,
 
+    // TODO Russian Roulete
     max_light_bounce: u32,
 }
 
@@ -212,6 +218,7 @@ impl SceneBuilder {
         let mut scene = Scene {
             objects: Vec::new(),
             lights: Vec::new(),
+            accelerator: Bvh::empty(),
             materials: Vec::new(),
             camera_center: self.camera_center,
             light_position: self.light_position,
