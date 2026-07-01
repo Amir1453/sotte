@@ -1,5 +1,8 @@
 A simple CPU path tracing library written in Rust. 
 
+Features:
+- Sequential and Parallel Linear BVH construction via [Karras](https://research.nvidia.com/sites/default/files/publications/karras2012hpg_paper.pdf)
+
 Project layout:
 - src/geometry: Geometrical objects and intersections. Implements spheres, quads and triangle meshes.
 - src/larp: Layered Acceleration with Recursive Partitions. Implements Axis-Aligned Bounding Boxes (AABB), generic Bounding Volume Hierarchies (BVH) with Surface Area Heuristic (SAH), and generic Linear BVH.
